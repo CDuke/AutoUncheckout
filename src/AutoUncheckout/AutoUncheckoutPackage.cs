@@ -1,18 +1,16 @@
-﻿using System;
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using EnvDTE;
-using EnvDTE80;
 using Microsoft.TeamFoundation.Client;
-using Microsoft.TeamFoundation.Common.Internal;
 using Microsoft.TeamFoundation.VersionControl.Client;
+using Microsoft.VisualStudio;
 using Microsoft.VisualStudio.Shell;
+using Microsoft.VisualStudio.Shell.Interop;
 using Constants = EnvDTE.Constants;
-using Task = System.Threading.Tasks.Task;
 
 namespace KulikovDenis.AutoUncheckout
 {
@@ -34,10 +32,12 @@ namespace KulikovDenis.AutoUncheckout
 	[InstalledProductRegistration("#110", "#112", "1.0", IconResourceID = 400)]
 	[Guid(GuidList.guidAutoUncheckoutPkgString)]
 	[ProvideAutoLoad(Constants.vsContextNoSolution)]
-	public sealed class AutoUncheckoutPackage : Package
+	public sealed class AutoUncheckoutPackage : Package, IVsShellPropertyEvents
 	{
+		private uint _cookie;
 		private Events _events;
 		private DocumentEvents _documentEvents;
+		private MD5CryptoServiceProvider _md5Provider;
 
 		/// <summary>
 		/// Default constructor of the package.
@@ -51,8 +51,6 @@ namespace KulikovDenis.AutoUncheckout
 			Debug.WriteLine(string.Format(CultureInfo.CurrentCulture, "Entering constructor for: {0}", this.ToString()));
 		}
 
-
-
 		/////////////////////////////////////////////////////////////////////////////
 		// Overridden Package Implementation
 		#region Package Members
@@ -65,58 +63,59 @@ namespace KulikovDenis.AutoUncheckout
 		{
 			Debug.WriteLine (string.Format(CultureInfo.CurrentCulture, "Entering Initialize() of: {0}", this.ToString()));
 			base.Initialize();
-			var dte = (DTE)GetService(typeof(DTE));
-			_events = dte.Events;
-			_documentEvents = _events.DocumentEvents;
-			_documentEvents.DocumentSaved += DocumentEvents_DocumentSaved;
 
+			_md5Provider = new MD5CryptoServiceProvider();
+			var shellService = GetService<SVsShell,IVsShell>();
+
+			if (shellService != null)
+				ErrorHandler.ThrowOnFailure(shellService.AdviseShellPropertyChanges(this, out _cookie));
 		}
 
 		private void DocumentEvents_DocumentSaved(Document document)
 		{
 			try
 			{
-				var workspaces = Workstation.Current.GetAllLocalWorkspaceInfo();
-				if (workspaces != null && workspaces.Length > 0)
+				var tfsContext = GetService<ITeamFoundationContextManager>();
+				if (tfsContext == null)
+					return;
+
+				if (tfsContext.CurrentContext == null || tfsContext.CurrentContext.TeamProjectCollection == null)
+					return;
+				
+				var tfs = tfsContext.CurrentContext.TeamProjectCollection;
+				var vcs = tfs.GetService<VersionControlServer>();
+				if (vcs == null)
+					return;
+
+				var workspace = vcs.GetWorkspace(document.FullName);
+//					vcs.QueryWorkspaces(null, tfs.AuthorizedIdentity.UniqueName, Environment.MachineName).FirstOrDefault();
+				if (workspace == null)
+					return;
+
+				var fileInfoItem = vcs.GetItem(document.FullName);
+
+				if (fileInfoItem != null)
 				{
-					var userLogin = System.Security.Principal.WindowsIdentity.GetCurrent().Name;
-					var currentWorkspace = workspaces.FirstOrDefault(w => w.Computer == Environment.MachineName && w.OwnerName == userLogin);
-					if (currentWorkspace != null)
+					using (var fileStream = new FileStream(document.FullName, FileMode.Open, FileAccess.Read))
 					{
-						var tfs = new TfsTeamProjectCollection(currentWorkspace.ServerUri);
-						var vcs = tfs.GetService<VersionControlServer>();
-						var fileInfoItem = vcs.GetItem(document.FullName);
-
-						if (fileInfoItem != null)
+						var currentHash = _md5Provider.ComputeHash(fileStream);
+						var hashEquals = fileInfoItem.HashValue.SequenceEqual(currentHash);
+						if (hashEquals)
 						{
-							var md5 = new MD5CryptoServiceProvider();
-							using (var fileStream = new FileStream(document.FullName, FileMode.Open, FileAccess.Read))
+							var fileInfo = new FileInfo(document.FullName);
+							if (!fileInfo.IsReadOnly)
 							{
-								var currentHash = md5.ComputeHash(fileStream);
-								var hashEquals = fileInfoItem.HashValue.SequenceEqual(currentHash);
-								if (hashEquals)
+								// This is from
+								// Assembly: Microsoft.VisualStudio.TeamFoundation.VersionControl, Version=12.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a
+								// Type: Microsoft.VisualStudio.TeamFoundation.VersionControl.ClientHelperVS
+								// Method: internal static void Undo(Workspace workspace, PendingChange[] changes)
+								using (new WorkspaceSuppressAsynchronousScanner(workspace))
 								{
-									var w = vcs.GetWorkspace(currentWorkspace);
-									var fileInfo = new FileInfo(document.FullName);
-									if (!fileInfo.IsReadOnly)
+									using (new WorkspacePersistedMetadataTables(workspace))
 									{
-										w.Undo(ItemSpec.FromStrings(new[] {document.FullName}, RecursionType.None), false);
-
-//										var activeWindow = document.ActiveWindow;
-//										document.DTE.Commands.Raise("{1496A755-94DE-11D0-8C3F-00C04FC2AAE2}", 222, null, null);
-//										// Refresh source control
-//										var sourceControlWindow = document.DTE.Windows.Item("{99B8FA2F-AB90-4F57-9C32-949F146F1914}");
-//										sourceControlWindow. Activate();
-//										document.DTE.Commands.Raise("{1496A755-94DE-11D0-8C3F-00C04FC2AAE2}", 222, null, null);
-//
-//										if (document.DTE.Solution != null && !string.IsNullOrEmpty(document.DTE.Solution.FullName))
-//										{
-//											var solutionWindow = document.DTE.Windows.Item(Constants.vsWindowKindSolutionExplorer);
-//											solutionWindow.Activate();
-//											document.DTE.Commands.Raise("{1496A755-94DE-11D0-8C3F-00C04FC2AAE2}", 222, null, null);
-//										}
-//
-//										activeWindow.Activate();
+										workspace.Undo(ItemSpec.FromStrings(new[] {document.FullName}, RecursionType.None), false);
+										var  vsFileChangeEx = GetService<SVsFileChangeEx, IVsFileChangeEx>();
+										vsFileChangeEx.SyncFile(document.FullName);
 									}
 								}
 							}
@@ -124,11 +123,52 @@ namespace KulikovDenis.AutoUncheckout
 					}
 				}
 			}
+			// Yes, Supress all exception
 			catch
 			{}
 		}
 
 		#endregion
 
+		public int OnShellPropertyChange(int propid, object var)
+		{
+			// when zombie state changes to false, finish package initialization
+			if ((int)__VSSPROPID.VSSPROPID_Zombie == propid)
+			{
+				if ((bool)var == false)
+				{
+					// zombie state dependent code
+
+					var dte = GetService(typeof(SDTE)) as DTE;
+					_events = dte.Events;
+					_documentEvents = _events.DocumentEvents;
+					_documentEvents.DocumentSaved += DocumentEvents_DocumentSaved;
+
+					// eventlistener no longer needed
+					var shellService = GetService(typeof(SVsShell)) as IVsShell;
+
+					if (shellService != null)
+
+						ErrorHandler.ThrowOnFailure(shellService.UnadviseShellPropertyChanges(_cookie));
+
+					_cookie = 0;
+
+				}
+
+			}
+
+			return VSConstants.S_OK;
+		}
+
+		private T GetService<T>() where T : class
+		{
+			return base.GetService(typeof(T)) as T;
+		}
+
+		private TInterface GetService<TType, TInterface>()
+			where TInterface : class
+		{
+			return base.GetService(typeof(TType)) as TInterface;
+		}
 	}
 }
