@@ -71,6 +71,8 @@ namespace KulikovDenis.AutoUncheckout
 				ErrorHandler.ThrowOnFailure(shellService.AdviseShellPropertyChanges(this, out _cookie));
 		}
 
+		#endregion
+
 		private void DocumentEvents_DocumentSaved(Document document)
 		{
 			try
@@ -87,11 +89,10 @@ namespace KulikovDenis.AutoUncheckout
 				if (vcs == null)
 					return;
 
-				var workspace = vcs.GetWorkspace(document.FullName);
+				var workspace = vcs.TryGetWorkspace(document.FullName);
 //					vcs.QueryWorkspaces(null, tfs.AuthorizedIdentity.UniqueName, Environment.MachineName).FirstOrDefault();
 				if (workspace == null)
 					return;
-
 				var fileInfoItem = vcs.GetItem(document.FullName);
 
 				if (fileInfoItem != null)
@@ -109,15 +110,15 @@ namespace KulikovDenis.AutoUncheckout
 								// Assembly: Microsoft.VisualStudio.TeamFoundation.VersionControl, Version=12.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a
 								// Type: Microsoft.VisualStudio.TeamFoundation.VersionControl.ClientHelperVS
 								// Method: internal static void Undo(Workspace workspace, PendingChange[] changes)
-								using (new WorkspaceSuppressAsynchronousScanner(workspace))
-								{
-									using (new WorkspacePersistedMetadataTables(workspace))
-									{
+								//using (new WorkspaceSuppressAsynchronousScanner(workspace))
+								//{
+//									using (new WorkspacePersistedMetadataTables(workspace))
+//									{
 										workspace.Undo(ItemSpec.FromStrings(new[] {document.FullName}, RecursionType.None), false);
-										var  vsFileChangeEx = GetService<SVsFileChangeEx, IVsFileChangeEx>();
+										var vsFileChangeEx = GetService<SVsFileChangeEx, IVsFileChangeEx>();
 										vsFileChangeEx.SyncFile(document.FullName);
-									}
-								}
+//									}
+								//}
 							}
 						}
 					}
@@ -128,31 +129,30 @@ namespace KulikovDenis.AutoUncheckout
 			{}
 		}
 
-		#endregion
-
 		public int OnShellPropertyChange(int propid, object var)
 		{
 			// when zombie state changes to false, finish package initialization
 			if ((int)__VSSPROPID.VSSPROPID_Zombie == propid)
 			{
-				if ((bool)var == false)
+				if (!(bool)var)
 				{
 					// zombie state dependent code
+					var dte = GetService<SDTE, DTE>();
+					if (dte != null)
+					{
+						_events = dte.Events;
+						_documentEvents = _events.DocumentEvents;
+						_documentEvents.DocumentSaved += DocumentEvents_DocumentSaved;
 
-					var dte = GetService(typeof(SDTE)) as DTE;
-					_events = dte.Events;
-					_documentEvents = _events.DocumentEvents;
-					_documentEvents.DocumentSaved += DocumentEvents_DocumentSaved;
+						// eventlistener no longer needed
+						var shellService = GetService<SVsShell, IVsShell>();
 
-					// eventlistener no longer needed
-					var shellService = GetService(typeof(SVsShell)) as IVsShell;
+						if (shellService != null)
 
-					if (shellService != null)
+							ErrorHandler.ThrowOnFailure(shellService.UnadviseShellPropertyChanges(_cookie));
 
-						ErrorHandler.ThrowOnFailure(shellService.UnadviseShellPropertyChanges(_cookie));
-
-					_cookie = 0;
-
+						_cookie = 0;
+					}
 				}
 
 			}
@@ -162,13 +162,13 @@ namespace KulikovDenis.AutoUncheckout
 
 		private T GetService<T>() where T : class
 		{
-			return base.GetService(typeof(T)) as T;
+			return GetService(typeof(T)) as T;
 		}
 
 		private TInterface GetService<TType, TInterface>()
 			where TInterface : class
 		{
-			return base.GetService(typeof(TType)) as TInterface;
+			return GetService(typeof(TType)) as TInterface;
 		}
 	}
 }
