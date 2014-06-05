@@ -137,7 +137,7 @@ namespace KulikovDenis.AutoUncheckout
 				if (!(bool)var)
 				{
 					// zombie state dependent code
-					var dte = GetService<SDTE, DTE>();
+					var dte = GetService<DTE, DTE>();
 					if (dte != null)
 					{
 						_events = dte.Events;
