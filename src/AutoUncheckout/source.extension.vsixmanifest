@@ -1,7 +1,7 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <PackageManifest Version="2.0.0" xmlns="http://schemas.microsoft.com/developer/vsx-schema/2011" xmlns:d="http://schemas.microsoft.com/developer/vsx-schema-design/2011">
 	<Metadata>
-		<Identity Id="AutoUncheckout.VS2013.1954660f-1535-4694-9e6d-c27e8eb476a4" Version="1.0" Language="en-US" Publisher="Kulikov Denis" />
+		<Identity Id="AutoUncheckout.VS2013.1954660f-1535-4694-9e6d-c27e8eb476a4" Version="1.1" Language="en-US" Publisher="Kulikov Denis" />
 		<DisplayName>Auto Uncheckout for Visual Studio 2013</DisplayName>
 		<Description xml:space="preserve">Automatically undo check out file, if it has not been modified</Description>
 		<MoreInfo>https://github.com/CDuke/AutoUncheckout</MoreInfo>

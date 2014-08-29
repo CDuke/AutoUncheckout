@@ -89,21 +89,26 @@ namespace KulikovDenis.AutoUncheckout
 				if (vcs == null)
 					return;
 
-				var workspace = vcs.TryGetWorkspace(document.FullName);
+				var fileName = document.FullName;
+				// If file is new nothing comparer
+				if (!vcs.ServerItemExists(fileName, ItemType.File))
+					return;
+
+				var workspace = vcs.TryGetWorkspace(fileName);
 //					vcs.QueryWorkspaces(null, tfs.AuthorizedIdentity.UniqueName, Environment.MachineName).FirstOrDefault();
 				if (workspace == null)
 					return;
-				var fileInfoItem = vcs.GetItem(document.FullName);
+				var fileInfoItem = vcs.GetItem(fileName);
 
 				if (fileInfoItem != null)
 				{
-					using (var fileStream = new FileStream(document.FullName, FileMode.Open, FileAccess.Read))
+					using (var fileStream = new FileStream(fileName, FileMode.Open, FileAccess.Read))
 					{
 						var currentHash = _md5Provider.ComputeHash(fileStream);
 						var hashEquals = fileInfoItem.HashValue.SequenceEqual(currentHash);
-						if (hashEquals)
+						if (hashEquals && !IsMerged(workspace, fileName))
 						{
-							var fileInfo = new FileInfo(document.FullName);
+							var fileInfo = new FileInfo(fileName);
 							if (!fileInfo.IsReadOnly)
 							{
 								// This is from
@@ -114,9 +119,9 @@ namespace KulikovDenis.AutoUncheckout
 								//{
 //									using (new WorkspacePersistedMetadataTables(workspace))
 //									{
-										workspace.Undo(ItemSpec.FromStrings(new[] {document.FullName}, RecursionType.None), false);
+										workspace.Undo(ItemSpec.FromStrings(new[] {fileName}, RecursionType.None), false);
 										var vsFileChangeEx = GetService<SVsFileChangeEx, IVsFileChangeEx>();
-										vsFileChangeEx.SyncFile(document.FullName);
+										vsFileChangeEx.SyncFile(fileName);
 //									}
 								//}
 							}
@@ -127,6 +132,16 @@ namespace KulikovDenis.AutoUncheckout
 			// Yes, Supress all exception
 			catch
 			{}
+		}
+
+		private static bool IsMerged(Workspace workspace, string fileName)
+		{
+			var pendingChanges = workspace.GetPendingChanges(fileName);
+			if (pendingChanges != null && pendingChanges.Length > 0)
+			{
+				return pendingChanges[0].IsMerge;
+			}
+			return false;
 		}
 
 		public int OnShellPropertyChange(int propid, object var)
