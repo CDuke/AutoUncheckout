@@ -4,6 +4,6 @@ IF NOT EXIST "tools/FAKE" (
 	"tools/nuget/nuget.exe" "install" "FAKE" "-OutputDirectory" "tools" "-ExcludeVersion"
 )
 
-"tools/FAKE/tools/Fake.exe" "build.fsx"
+"tools/FAKE/tools/Fake.exe" "%~dp0build/build.fsx" "VisualStudioVersion=12.0"
 pause
 exit /b %errorlevel%
