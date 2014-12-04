@@ -43,7 +43,6 @@
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="Microsoft.CSharp" />
-
     <Reference Include="Microsoft.VisualStudio.OLE.Interop" />
     <Reference Include="Microsoft.VisualStudio.Shell.Interop" />
     <Reference Include="Microsoft.VisualStudio.Shell.Interop.8.0" />
@@ -60,9 +59,11 @@
       <ItemGroup>
         <Reference Include="Microsoft.TeamFoundation.Client">
           <HintPath>C:\Program Files\Common Files\microsoft shared\Team Foundation Server\14.0\Microsoft.TeamFoundation.Client.dll</HintPath>
+          <Private>False</Private>
         </Reference>
         <Reference Include="Microsoft.TeamFoundation.VersionControl.Client">
           <HintPath>C:\Program Files\Common Files\microsoft shared\Team Foundation Server\14.0\Microsoft.TeamFoundation.VersionControl.Client.dll</HintPath>
+          <Private>False</Private>
         </Reference>
       </ItemGroup>
     </When>
