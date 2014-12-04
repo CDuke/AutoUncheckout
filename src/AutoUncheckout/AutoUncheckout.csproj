@@ -43,6 +43,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="Microsoft.CSharp" />
+
     <Reference Include="Microsoft.VisualStudio.OLE.Interop" />
     <Reference Include="Microsoft.VisualStudio.Shell.Interop" />
     <Reference Include="Microsoft.VisualStudio.Shell.Interop.8.0" />
@@ -54,14 +55,30 @@
     <Reference Include="System" />
     <Reference Include="System.Core" />
   </ItemGroup>
-	<ItemGroup Condition="$(VisualStudioVersion)== '12.0'">
-		<Reference Include="Microsoft.TeamFoundation.Client, Version=12.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL" />
-    <Reference Include="Microsoft.TeamFoundation.VersionControl.Client, Version=12.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL" />
-	</ItemGroup>
-	<ItemGroup Condition="$(VisualStudioVersion)=='11.0'">
-		<Reference Include="Microsoft.TeamFoundation.Client, Version=11.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL" />
-		<Reference Include="Microsoft.TeamFoundation.VersionControl.Client, Version=11.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL" />
-	</ItemGroup>
+  <Choose>
+    <When Condition="$(VisualStudioVersion)== '14.0'">
+      <ItemGroup>
+        <Reference Include="Microsoft.TeamFoundation.Client">
+          <HintPath>C:\Program Files\Common Files\microsoft shared\Team Foundation Server\14.0\Microsoft.TeamFoundation.Client.dll</HintPath>
+        </Reference>
+        <Reference Include="Microsoft.TeamFoundation.VersionControl.Client">
+          <HintPath>C:\Program Files\Common Files\microsoft shared\Team Foundation Server\14.0\Microsoft.TeamFoundation.VersionControl.Client.dll</HintPath>
+        </Reference>
+      </ItemGroup>
+    </When>
+    <When Condition="$(VisualStudioVersion)== '12.0'">
+      <ItemGroup>
+        <Reference Include="Microsoft.TeamFoundation.Client, Version=12.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL" />
+        <Reference Include="Microsoft.TeamFoundation.VersionControl.Client, Version=12.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL" />
+      </ItemGroup>
+    </When>
+    <When Condition="$(VisualStudioVersion)=='11.0'">
+      <ItemGroup>
+        <Reference Include="Microsoft.TeamFoundation.Client, Version=11.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL" />
+        <Reference Include="Microsoft.TeamFoundation.VersionControl.Client, Version=11.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL" />
+      </ItemGroup>
+    </When>
+  </Choose>
   <ItemGroup>
     <COMReference Include="EnvDTE">
       <Guid>{80CC9F66-E7D8-4DDD-85B6-D9E6CD0E93E2}</Guid>
@@ -102,11 +119,11 @@
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
   </ItemGroup>
-	<ItemGroup>
-		<None Include="source.extension.vsixmanifest">
-			<SubType>Designer</SubType>
-		</None>
-	</ItemGroup>
+  <ItemGroup>
+    <None Include="source.extension.vsixmanifest">
+      <SubType>Designer</SubType>
+    </None>
+  </ItemGroup>
   <ItemGroup>
     <None Include="Key.snk" />
   </ItemGroup>
@@ -123,10 +140,11 @@
   </PropertyGroup>
   <Import Project="$(MSBuildBinPath)\Microsoft.CSharp.targets" />
   <Import Project="$(VSToolsPath)\VSSDK\Microsoft.VsSDK.targets" Condition="'$(VSToolsPath)' != ''" />
-	<Target Name="BeforeBuild">
-		<Copy SourceFiles="source.vs11.extension.vsixmanifest" DestinationFiles="source.extension.vsixmanifest" Condition="$(VisualStudioVersion)=='11.0'" />
-		<Copy SourceFiles="source.vs12.extension.vsixmanifest" DestinationFiles="source.extension.vsixmanifest" Condition="$(VisualStudioVersion)=='12.0'" />
-	</Target>
+  <Target Name="BeforeBuild">
+    <Copy SourceFiles="source.vs11.extension.vsixmanifest" DestinationFiles="source.extension.vsixmanifest" Condition="$(VisualStudioVersion)=='11.0'" />
+    <Copy SourceFiles="source.vs12.extension.vsixmanifest" DestinationFiles="source.extension.vsixmanifest" Condition="$(VisualStudioVersion)=='12.0'" />
+    <Copy SourceFiles="source.vs14.extension.vsixmanifest" DestinationFiles="source.extension.vsixmanifest" Condition="$(VisualStudioVersion)=='14.0'" />
+  </Target>
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it.
        Other similar extension points exist, see Microsoft.Common.targets.
   <Target Name="BeforeBuild">
