@@ -1,13 +1,13 @@
 ﻿using System.Diagnostics;
 using System.Globalization;
 using System.IO;
-using System.Linq;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using EnvDTE;
 using Microsoft.TeamFoundation.Client;
 using Microsoft.TeamFoundation.VersionControl.Client;
 using Microsoft.VisualStudio;
+using Microsoft.VisualStudio.OLE.Interop;
 using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Shell.Interop;
 using Constants = EnvDTE.Constants;
@@ -35,9 +35,8 @@ namespace KulikovDenis.AutoUncheckout
 	public sealed class AutoUncheckoutPackage : Package, IVsShellPropertyEvents
 	{
 		private uint _cookie;
-		private Events _events;
-		private DocumentEvents _documentEvents;
 		private MD5CryptoServiceProvider _md5Provider;
+		internal RunningDocumentTable Rdt;
 
 		/// <summary>
 		/// Default constructor of the package.
@@ -48,7 +47,7 @@ namespace KulikovDenis.AutoUncheckout
 		/// </summary>
 		public AutoUncheckoutPackage()
 		{
-			Debug.WriteLine(string.Format(CultureInfo.CurrentCulture, "Entering constructor for: {0}", this.ToString()));
+            Debug.WriteLine(string.Format(CultureInfo.CurrentCulture, "Entering constructor for: {0}", this.ToString()));
 		}
 
 		/////////////////////////////////////////////////////////////////////////////
@@ -69,14 +68,21 @@ namespace KulikovDenis.AutoUncheckout
 
 			if (shellService != null)
 				ErrorHandler.ThrowOnFailure(shellService.AdviseShellPropertyChanges(this, out _cookie));
+			var serviceProvider = GetGlobalService(typeof (IServiceProvider)) as IServiceProvider;
+			Rdt = new RunningDocumentTable(new ServiceProvider(serviceProvider));
+			Rdt.Advise(new SaveListener(this));
 		}
 
 		#endregion
 
-		private void DocumentEvents_DocumentSaved(Document document)
+		internal void Uncheckout(string fileName)
 		{
 			try
 			{
+				var fileInfo = new FileInfo(fileName);
+				if (fileInfo.IsReadOnly)
+					return;
+
 				var tfsContext = GetService<ITeamFoundationContextManager>();
 				if (tfsContext == null)
 					return;
@@ -89,41 +95,37 @@ namespace KulikovDenis.AutoUncheckout
 				if (vcs == null)
 					return;
 
-				var fileName = document.FullName;
+				
 				// If file is new nothing comparer
 				if (!vcs.ServerItemExists(fileName, ItemType.File))
 					return;
 
 				var workspace = vcs.TryGetWorkspace(fileName);
-//					vcs.QueryWorkspaces(null, tfs.AuthorizedIdentity.UniqueName, Environment.MachineName).FirstOrDefault();
 				if (workspace == null)
 					return;
 				var fileInfoItem = vcs.GetItem(fileName);
-
 				if (fileInfoItem != null)
 				{
-					using (var fileStream = new FileStream(fileName, FileMode.Open, FileAccess.Read))
+					using (var fileStream = new FileStream(fileName, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, FileOptions.SequentialScan))
 					{
 						var currentHash = _md5Provider.ComputeHash(fileStream);
-						var hashEquals = fileInfoItem.HashValue.SequenceEqual(currentHash);
+						var hashEquals = HashEquals(currentHash, fileInfoItem.HashValue);
 						if (hashEquals && !IsMerged(workspace, fileName))
 						{
-							var fileInfo = new FileInfo(fileName);
-							if (!fileInfo.IsReadOnly)
+							// This is from
+							// Assembly: Microsoft.VisualStudio.TeamFoundation.VersionControl, Version=12.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a
+							// Type: Microsoft.VisualStudio.TeamFoundation.VersionControl.ClientHelperVS
+							// Method: internal static void Undo(Workspace workspace, PendingChange[] changes)
+							using (new WorkspaceSuppressAsynchronousScanner(workspace))
 							{
-								// This is from
-								// Assembly: Microsoft.VisualStudio.TeamFoundation.VersionControl, Version=12.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a
-								// Type: Microsoft.VisualStudio.TeamFoundation.VersionControl.ClientHelperVS
-								// Method: internal static void Undo(Workspace workspace, PendingChange[] changes)
-								//using (new WorkspaceSuppressAsynchronousScanner(workspace))
-								//{
-//									using (new WorkspacePersistedMetadataTables(workspace))
-//									{
-										workspace.Undo(ItemSpec.FromStrings(new[] {fileName}, RecursionType.None), false);
-										var vsFileChangeEx = GetService<SVsFileChangeEx, IVsFileChangeEx>();
-										vsFileChangeEx.SyncFile(fileName);
-//									}
-								//}
+								using (new WorkspacePersistedMetadataTables(workspace))
+								{
+									workspace.Undo(ItemSpec.FromStrings(new[] { fileInfoItem.ServerItem }, RecursionType.None), false);
+									workspace.UnqueueForEdit(fileName);
+									//workspace.Get(new GetRequest(fileInfoItem.ServerItem, RecursionType.None, VersionSpec.Latest), GetOptions.None);
+									var vsFileChangeEx = GetService<SVsFileChangeEx, IVsFileChangeEx>();
+									vsFileChangeEx.SyncFile(fileName);
+								}
 							}
 						}
 					}
@@ -152,18 +154,13 @@ namespace KulikovDenis.AutoUncheckout
 				if (!(bool)var)
 				{
 					// zombie state dependent code
-					var dte = GetService<DTE, DTE>();
+					var dte = GetService<DTE>();
 					if (dte != null)
 					{
-						_events = dte.Events;
-						_documentEvents = _events.DocumentEvents;
-						_documentEvents.DocumentSaved += DocumentEvents_DocumentSaved;
-
 						// eventlistener no longer needed
 						var shellService = GetService<SVsShell, IVsShell>();
 
 						if (shellService != null)
-
 							ErrorHandler.ThrowOnFailure(shellService.UnadviseShellPropertyChanges(_cookie));
 
 						_cookie = 0;
@@ -175,15 +172,29 @@ namespace KulikovDenis.AutoUncheckout
 			return VSConstants.S_OK;
 		}
 
-		private T GetService<T>() where T : class
+		internal T GetService<T>() where T : class
 		{
 			return GetService(typeof(T)) as T;
 		}
 
-		private TInterface GetService<TType, TInterface>()
+		internal TInterface GetService<TType, TInterface>()
 			where TInterface : class
 		{
 			return GetService(typeof(TType)) as TInterface;
+		}
+
+		private static bool HashEquals(byte[] hash1, byte[] hash2)
+		{
+			if (hash1.Length != hash2.Length)
+				return false;
+
+			for (int i = 0; i < hash1.Length; i++)
+			{
+				if (hash1[i] != hash2[i])
+					return false;
+			}
+
+			return true;
 		}
 	}
 }

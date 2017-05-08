@@ -22,6 +22,7 @@
     <SignAssembly>True</SignAssembly>
     <AssemblyOriginatorKeyFile>Key.snk</AssemblyOriginatorKeyFile>
     <TargetFrameworkVersion>v4.5</TargetFrameworkVersion>
+    <TargetFrameworkVersion Condition="'$(VisualStudioVersion)' == '15.0'">v4.6.2</TargetFrameworkVersion>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <DebugSymbols>true</DebugSymbols>
@@ -43,18 +44,56 @@
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="Microsoft.CSharp" />
-    <Reference Include="Microsoft.VisualStudio.OLE.Interop" />
-    <Reference Include="Microsoft.VisualStudio.Shell.Interop" />
-    <Reference Include="Microsoft.VisualStudio.Shell.Interop.8.0" />
-    <Reference Include="Microsoft.VisualStudio.Shell.Interop.9.0" />
-    <Reference Include="Microsoft.VisualStudio.Shell.Interop.9.0" />
-    <Reference Include="Microsoft.VisualStudio.Shell.Interop.10.0" />
-    <Reference Include="Microsoft.VisualStudio.Shell.12.0" />
-    <Reference Include="Microsoft.VisualStudio.Shell.Immutable.10.0" />
+    <Reference Include="Microsoft.VisualStudio.OLE.Interop">
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="Microsoft.VisualStudio.Shell.Interop">
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="Microsoft.VisualStudio.Shell.Interop.8.0">
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="Microsoft.VisualStudio.Shell.Interop.9.0">
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="Microsoft.VisualStudio.Shell.Interop.10.0">
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="Microsoft.VisualStudio.Shell.Interop.11.0">
+      <EmbedInteropTypes>true</EmbedInteropTypes>
+    </Reference>
+    <Reference Include="Microsoft.VisualStudio.Shell.Interop.12.0">
+      <EmbedInteropTypes>true</EmbedInteropTypes>
+    </Reference>
+    <Reference Include="Microsoft.VisualStudio.Shell.12.0">
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="Microsoft.VisualStudio.Shell.Immutable.10.0">
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="Microsoft.VisualStudio.Shell.Immutable.11.0">
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="Microsoft.VisualStudio.Shell.Immutable.12.0">
+      <Private>False</Private>
+    </Reference>
     <Reference Include="System" />
     <Reference Include="System.Core" />
   </ItemGroup>
   <Choose>
+    <When Condition="$(VisualStudioVersion)== '15.0'">
+      <ItemGroup>
+        <Reference Include="Microsoft.VisualStudio.Shell.Framework, Version=15.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL" />
+        <Reference Include="Microsoft.TeamFoundation.Client">
+          <HintPath>C:\Program Files\Common Files\microsoft shared\Team Foundation Server\15.0\Microsoft.TeamFoundation.Client.dll</HintPath>
+          <Private>False</Private>
+        </Reference>
+        <Reference Include="Microsoft.TeamFoundation.VersionControl.Client">
+          <HintPath>C:\Program Files\Common Files\microsoft shared\Team Foundation Server\15.0\Microsoft.TeamFoundation.VersionControl.Client.dll</HintPath>
+          <Private>False</Private>
+        </Reference>
+      </ItemGroup>
+    </When>
     <When Condition="$(VisualStudioVersion)== '14.0'">
       <ItemGroup>
         <Reference Include="Microsoft.TeamFoundation.Client">
@@ -81,15 +120,11 @@
     </When>
   </Choose>
   <ItemGroup>
-    <COMReference Include="EnvDTE">
-      <Guid>{80CC9F66-E7D8-4DDD-85B6-D9E6CD0E93E2}</Guid>
-      <VersionMajor>8</VersionMajor>
-      <VersionMinor>0</VersionMinor>
-      <Lcid>0</Lcid>
-      <WrapperTool>primary</WrapperTool>
-      <Isolated>False</Isolated>
+    <Reference Include="EnvDTE, Version=8.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a">
       <EmbedInteropTypes>False</EmbedInteropTypes>
-    </COMReference>
+      <HintPath>..\..\lib\EnvDTE.8.0.1\lib\net10\EnvDTE.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Guids.cs" />
@@ -101,6 +136,7 @@
     <Compile Include="GlobalSuppressions.cs" />
     <Compile Include="AutoUncheckoutPackage.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="SaveListener.cs" />
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="Resources.resx">
@@ -145,6 +181,7 @@
     <Copy SourceFiles="source.vs11.extension.vsixmanifest" DestinationFiles="source.extension.vsixmanifest" Condition="$(VisualStudioVersion)=='11.0'" />
     <Copy SourceFiles="source.vs12.extension.vsixmanifest" DestinationFiles="source.extension.vsixmanifest" Condition="$(VisualStudioVersion)=='12.0'" />
     <Copy SourceFiles="source.vs14.extension.vsixmanifest" DestinationFiles="source.extension.vsixmanifest" Condition="$(VisualStudioVersion)=='14.0'" />
+    <Copy SourceFiles="source.vs15.extension.vsixmanifest" DestinationFiles="source.extension.vsixmanifest" Condition="$(VisualStudioVersion)=='15.0'" />
   </Target>
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it.
        Other similar extension points exist, see Microsoft.Common.targets.
